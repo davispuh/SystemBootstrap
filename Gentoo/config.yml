@@ -1,0 +1,48 @@
+---
+Root: "/mnt/gentoo"
+Mirror: http://distfiles.gentoo.org
+Arch: amd64
+Platform: amd64
+Location: "$MIRROR/releases/$ARCH/autobuilds"
+LatestStage: latest-stage3-$PLATFORM.txt
+Folder: '20140619'
+Stage3: stage3-amd64-20140619.tar.bz2
+Digests: "$STAGE3.DIGESTS.asc"
+KeyID: '0xBB572E0E2D182910'
+DigestsHeader: "# SHA512 HASH"
+MakeCFLAGS: "-march=native -O2 -pipe"
+MakeMAKEOPTS: "-j$(expr `nproc` + 1)"
+MakeUSE:
+- "-bindist"
+- udev
+MakePython:
+- python2_7
+- python3_3
+MakeRuby:
+- ruby19
+- ruby20
+- ruby21
+MakeInputDevices:
+- evdev
+MakeVideoCards:
+- nouveau
+- radeon
+MakeLinguas:
+- en_US
+- en
+Profile: desktop/kde/systemd
+Locales:
+- en_US.UTF-8 UTF-8
+Genkernel: false
+Modules: 
+Init: systemd
+Initramfs: dracut
+InitModules: 
+UEFI: false
+Bootloader: grub2
+Packages:
+- app-portage/gentoolkit
+- app-portage/layman
+- sys-apps/mlocate
+- app-editors/vim
+Remove: 
