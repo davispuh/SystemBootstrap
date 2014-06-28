@@ -1,0 +1,587 @@
+#!/bin/bash
+#
+# Gentoo Installation Bootstrapping
+#
+#
+#
+# Manually boot Installation medium
+#
+# 3. Configuring your Network
+#
+# 4. Preparing the Disks
+#
+# 4.f. Mounting
+#      Mount partitions
+#
+# 5.a. Setting the Date/Time Right
+#
+# Launch ./bootstrap.sh install
+#
+#
+
+SCRIPT=`realpath $0`
+ROOT=<%= @Config[:Root].inspect %>
+
+MIRROR=<%= @Config[:Mirror].inspect %>
+ARCH=<%= @Config[:Arch].inspect %>
+PLATFORM=<%= @Config[:Platform].inspect %>
+LOCATION=<%= @Config[:Location].inspect %>
+FOLDER=<%= @Config[:Folder].inspect %>
+STAGE3=<%= @Config[:Stage3].inspect %>
+DIGESTS=<%= @Config[:Digests].inspect %>
+KEYID='<%= @Config[:KeyID] %>'
+HEADER='<%= @Config[:DigestsHeader] %>'
+
+MAKECONF="/etc/portage/make.conf"
+PACKAGEKEYWORDS="/etc/portage/package.keywords"
+
+MAKECFLAGS='<%= @Config[:MakeCFLAGS] %>'
+MAKEOPTS=<%= @Config[:MakeMAKEOPTS].inspect %>
+MAKEUSE='<%= @Config[:MakeUSE].to_a.join(' ') %>'
+MAKERUBY='<%= @Config[:MakeRuby].to_a.join(' ') %>'
+MAKEPYTHON='<%= @Config[:MakePython].to_a.join(' ') %>'
+MAKEINPUTDEVICES='<%= @Config[:MakeInputDevices].to_a.join(' ') %>'
+MAKEVIDEOCARDS='<%= @Config[:MakeVideoCards].to_a.join(' ') %>'
+MAKELINGUAS='<%= @Config[:MakeLinguas].to_a.join(' ') %>'
+
+PROFILE=<%= @Config[:Profile].inspect %>
+
+KERNEL_MODULES='<%= @Config[:Modules].to_a.join(' ') %>'
+
+SHASUM=''
+
+
+CLEAN="tr -d '\040\011\012\015'"
+
+#################################################
+#
+# Installation start!
+#
+# 5. Installing the Gentoo Installation Files
+# 5.a. Installing a Stage Tarball
+# 5.b. Using a Stage from the Internet
+#
+
+
+
+cp $SCRIPT ./scripttmp
+
+sed -i "0,/SHASUM=/{s/SHASUM=.*/SHASUM=''/}" ./scripttmp
+
+`echo "$SHASUM ./scripttmp" | sha512sum -c --status -`
+
+if [ $? -ne 0 ]; then
+    echo "ERROR! SHA checksum does not match for this script!"
+    echo "Possibly corrupted script!"
+    rm -f ./scripttmp
+    exit 1
+fi
+
+rm -f ./scripttmp
+
+
+if [ "$1" == "install" ]; then
+
+    mkdir -p $ROOT/tmp
+    chmod -R 1777 $ROOT/tmp
+
+    #
+    # Code Listing 2.1: Going to the Gentoo mountpoint
+    #
+    cd $ROOT
+
+    wget -N $LOCATION/$FOLDER/$DIGESTS
+
+    gpg -q --no-verbose --refresh-keys
+    gpg -q --no-verbose --recv-keys "$KEYID"
+
+    #
+    # Code Listing 2.5: Validating the checksums using gpg
+    #
+    gpg -q --no-verbose --verify $DIGESTS
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR! Failed to verify signature of $DIGESTS"
+        exit 1
+    fi
+
+    #
+    # Downloading the Stage Tarball
+    #
+    wget -N $LOCATION/$FOLDER/$STAGE3
+
+    EXPECTED=`grep -m 1 -A1 "$HEADER" $DIGESTS | $CLEAN`
+
+    if [ -z "$EXPECTED" ]; then
+        echo "ERROR! SHA512 checksum not found in signed digest file $DIGESTS"
+        exit 1
+    fi
+
+    #
+    # Code Listing 2.4: Calculating the integrity checksum of a stage tarball
+    #
+    SHA512=`sha512sum $STAGE3`
+    GOTSHA=`echo "$HEADER$SHA512" | $CLEAN`
+    if [ "$GOTSHA" != "$EXPECTED" ]; then
+        echo "ERROR! SHA512 checksums do not match for file $STAGE3"
+        echo "Expected: $EXPECTED"
+        echo " But got: $GOTSHA"
+        exit 1
+    fi
+
+    #
+    # Unpacking the Stage Tarball
+    #
+    # Code Listing 2.6: Unpacking the stage
+    #
+    tar xvjpf $STAGE3
+
+    rm -f $DIGESTS $STAGE3
+
+
+    #
+    # 5.c. Configuring the Compile Options
+    #
+
+    #
+    # CFLAGS and CXXFLAGS
+    #
+    # Code Listing 3.2: Defining the CFLAGS and CXXFLAGS variable
+    #
+    if [ ! -z "$MAKECFLAGS" ]; then
+        sed -i "/CFLAGS=.*/c\CFLAGS=\"$MAKECFLAGS\"" .$MAKECONF
+    fi
+
+    #
+    # MAKEOPTS
+    #
+    # Code Listing 3.3: MAKEOPTS
+    #
+    echo "MAKEOPTS=\"$MAKEOPTS\"" >> .$MAKECONF
+
+    #
+    # Configuring the USE variable
+    #
+
+    <% { mmx: :mmx, mmxext: :mmxext, sse: :sse, sse2: :sse2, sse3: :sse3, pni: :ssse3, sse4_1: :sse4_1, avx: :avx, avx2: :avx2 }.each do |name, use| %>
+    MATCH=`cat /proc/cpuinfo | grep -m 1 -o <%= name.to_s %>`
+    if [ ! -z "$MATCH" ]; then
+        MAKEUSE="$MAKEUSE <%= use.to_s %>"
+    fi<% end %>
+
+    #
+    # Code Listing 2.10: USE setting
+    #
+    sed -i "/USE=.*/c\USE=\"$MAKEUSE\"" .$MAKECONF
+
+    #
+    # PYTHON_TARGETS
+    #
+    echo "PYTHON_TARGETS=\"$MAKEPYTHON\"" >> .$MAKECONF
+
+    #
+    # RUBY_TARGETS
+    #
+    echo "RUBY_TARGETS=\"$MAKERUBY\"" >> .$MAKECONF
+
+    #
+    # INPUT_DEVICES
+    #
+    echo "INPUT_DEVICES=\"$MAKEINPUTDEVICES\"" >> .$MAKECONF
+
+    #
+    # VIDEO_CARDS
+    #
+    echo "VIDEO_CARDS=\"$MAKEVIDEOCARDS\"" >> .$MAKECONF
+
+    #
+    # LINGUAS
+    #
+    echo "LINGUAS=\"$MAKELINGUAS\"" >> .$MAKECONF
+
+
+    #
+    # Optional: Selecting Mirrors
+    #
+    # Code Listing 1.1: Using mirrorselect for the GENTOO_MIRRORS variable
+    #
+    mirrorselect -s5 -o >> .$MAKECONF
+    #
+    # Code Listing 1.2: Selecting an rsync mirror using mirrorselect
+    #
+    mirrorselect -i -r -o >> .$MAKECONF
+
+
+    #
+    # Copy DNS Info
+    #
+    cp -L /etc/resolv.conf ./etc/
+
+    # Copy itself bootstrap script
+    cp -L -u $SCRIPT ./root/bootstrap.sh
+
+    #############################################
+    #
+    # 6. Installing the Gentoo Base System
+    #
+    # 6.a. Chrooting
+    #
+    # Mounting the necessary Filesystems
+    #
+    #
+    # Code Listing 1.4: Mounting /proc and /dev
+    #
+    mount -t proc proc ./proc
+    mount --rbind /sys ./sys
+    mount --rbind /dev ./dev
+
+    #
+    # Entering the new Environment
+    #
+    #
+    # Code Listing 1.5: Chrooting into the new environment
+    #
+    chroot ./ /bin/bash -c "/root/bootstrap.sh chroot"
+
+
+    echo
+    echo "Done! Now you should reboot!"
+
+elif [ "$1" == "chroot" ]; then
+
+    mkdir -p $PACKAGEKEYWORDS
+
+    #
+    # 6.b. Configuring Portage
+    #
+    # Installing a Portage Snapshot
+    #
+    #
+    # Code Listing 2.1: Running emerge-webrsync to install a Portage snapshot
+    #
+    emerge-webrsync
+
+    #
+    # Optional: Updating the Portage tree
+    #
+    # Code Listing 2.2: Updating the Portage tree
+    #
+    emerge --sync
+
+
+    emerge --oneshot portage
+
+
+    #
+    # Choosing the Right Profile
+    #
+    PROFILE_NUM=1
+    PROFILE_MATCH="\[([0-9]+)\][ ]+[^ ]+$PROFILE"
+
+    #
+    # Code Listing 2.5: Verifying system profile
+    #
+    if [[ `eselect profile list` =~ $PROFILE_MATCH ]]; then
+        PROFILE_NUM=${BASH_REMATCH[1]}
+    fi
+
+    #
+    # Code Listing 2.6: Changing profiles
+    #
+    eselect profile set $PROFILE_NUM
+
+    #
+    # 6.e. Configure locales
+    #
+    #
+    # Code Listing 5.2: Specify your locales
+    #
+    <% @Config[:Locales].to_a.each do |locale| %>
+    echo <%= locale.inspect %> >> /etc/locale.gen<% end %>
+
+    #
+    # Code Listing 5.3: Running locale-gen
+    #
+    locale-gen
+
+
+    LOCALE_NUM=1
+    LOCALE_MATCH="\[([0-9]+)\][ ]+<%= getLocale(@Config[:Locales].to_a.first) %>"
+    #
+    # Code Listing 5.4: Displaying the available LANG settings
+    #
+    if [[ `eselect locale list` =~ $LOCALE_MATCH ]]; then
+        LOCALE_NUM=${BASH_REMATCH[1]}
+    fi
+
+    #
+    # Code Listing 5.5: Setting the LANG variable
+    #
+    eselect locale set $LOCALE_NUM
+
+    #
+    # Code Listing 5.7: Reload shell environment
+    #
+    env-update && source /etc/profile
+
+
+    ##############################################
+    #
+    # 7. Configuring the Kernel
+    #
+    # 7.a. Installing the Sources
+    #
+
+    # Code Listing 1.1: Installing a kernel source
+    emerge sys-kernel/gentoo-sources sys-kernel/linux-firmware sys-apps/pciutils sys-apps/usbutils app-admin/mcelog sys-fs/e2fsprogs sys-fs/btrfs-progs sys-fs/dosfstools sys-fs/ntfs3g net-misc/dhcpcd
+
+    <% if @Config[:Genkernel] %>
+
+    #
+    # 7.c. Alternative: Using genkernel
+    #
+
+    #
+    # Code Listing 3.1: Emerging genkernel
+    #
+    <% if @Config[:Genkernel].to_s.downcase == 'next' %>
+    emerge sys-kernel/genkernel-next
+    <% else %>
+    emerge sys-kernel/genkernel
+    <% end %>
+
+    #
+    # Code Listing 3.2: Running genkernel
+    #
+    genkernel --menuconfig all
+
+    <% else %>
+
+    #
+    # 7.b. Default: Manual Configuration
+    #
+    #
+    # Code Listing 2.1: Invoking menuconfig
+    #
+    cd /usr/src/linux
+
+    echo '<%= @KernelConfig %>' > ./.config
+
+    make menuconfig
+
+    #
+    # Compiling and Installing
+    #
+    #
+    # Code Listing 2.8: Compiling the kernel
+    #
+    make && make modules_install
+
+    #
+    # Code Listing 2.9: Installing the kernel
+    #
+    make install
+
+    <% end %>
+
+    cd ~
+
+    KERNEL_NAME=`readlink -n /usr/src/linux | cut -c 7-`
+
+
+    #
+    # 7.d. Kernel Modules
+    #
+    # Configuring the Modules
+    #
+    #
+    # Code Listing 4.2: Editing /etc/conf.d/modules
+    #
+    <% if @Config[:Modules] %>echo "modules=\"$KERNEL_MODULES\"" > /etc/conf.d/modules<% end %>
+
+    <% if @Config[:Init].downcase == 'systemd' %>
+
+    #
+    # 6.c. Optional: Using systemd
+    #
+
+    ln -sf /proc/self/mounts /etc/mtab
+    echo "sys-apps/systemd" >> $PACKAGEKEYWORDS/systemd
+
+    USE="-systemd" emerge sys-apps/dbus
+    emerge sys-apps/systemd net-misc/netctl sys-auth/pambase
+    emerge -C sys-apps/openrc net-misc/netifrc sys-apps/sysvinit sys-fs/udev-init-scripts
+
+    echo '[Match]
+Name=en*
+
+[Network]
+DHCP=yes' > /etc/systemd/network/dhcp.network
+
+    systemctl enable systemd-networkd.service
+    systemctl enable dhcpcd.service
+
+    rm -f /etc/initab
+    rm -rf /etc/runlevels
+
+    <% elsif @Config[:Init].downcase == 'openrc' %>
+
+    # NOT IMPLEMENTED
+    <% raise "OpenRC not implemented!" %>
+
+    <% else %>
+
+    # NOT IMPLEMENTED
+    <% raise "#{@Config[:Init].inspect} not implemented!" %>
+
+    <% end %>
+
+
+    #
+    # (Optional) Building an Initramfs
+    #
+    <% if @Config[:Initramfs].to_s.downcase == 'dracut' %>
+
+    echo "sys-kernel/dracut" >> $PACKAGEKEYWORDS/dracut
+    emerge sys-kernel/dracut
+
+    DRACUTCONF="/etc/dracut.conf"
+    sed -i "/hostonly=.*/c\hostonly=\"yes\"" $DRACUTCONF
+
+    <% if @Config[:InitModules] %>
+    INITMODULES='<%= @Config[:InitModules].to_a.join(' ') %>'
+    sed -i "/add_dracutmodules+=.*/c\add_dracutmodules+==\"$INITMODULES\"" $DRACUTCONF
+    <% end %>
+
+    dracut -f '' $KERNEL_NAME
+
+    <% elsif @Config[:Initramfs].downcase == 'genkernel' %>
+
+    genkernel --<%= @Config[:InitModules].to_a.join(' --') %> --install initramfs
+
+    <% end %>
+
+    ##############################################
+    #
+    # 8. Configuring your System
+    #
+    BOOTDEVICE=""
+
+    FSTAB_OPTIONS="defaults,noatime"
+    FSTAB_DUMP=0
+    FSTAB_MATCH="^(/dev/[a-z0-9]+) on (/[a-z0-9/]*) type ([a-z0-9]+)"
+    echo "" > /etc/fstab
+    while read -r line; do
+        if [[ $line =~ $FSTAB_MATCH ]]; then
+            FSTAB_DEVICE=${BASH_REMATCH[1]}
+            FSTAB_PATH=${BASH_REMATCH[2]}
+            FSTAB_TYPE=${BASH_REMATCH[3]}
+            FSTAB_FSCK=2
+            if [ "$FSTAB_TYPE" == "btrfs" ]; then
+                FSTAB_FSCK=0
+            elif [ "$FSTAB_PATH" == "/" ]; then
+                FSTAB_FSCK=1
+            fi
+            if [ "$FSTAB_PATH" == "/boot" ]; then
+                BOOTDEVICE=$FSTAB_DEVICE
+            elif [ "$FSTAB_PATH" == "/" ] && [ -z "$BOOTDEVICE" ]; then
+                    BOOTDEVICE=$FSTAB_DEVICE
+            fi
+            FSTAB_UUID=`lsblk -f $FSTAB_DEVICE -o UUID -n`
+            #
+            # Creating /etc/fstab
+            #
+            echo "UUID=$FSTAB_UUID    $FSTAB_PATH    $FSTAB_TYPE    $FSTAB_OPTIONS    $FSTAB_DUMP    $FSTAB_FSCK" >> /etc/fstab
+        fi
+    done <<< $"`mount | grep ^/dev/`"
+
+    if [ -z "$BOOTDEVICE" ]; then
+        echo "ERROR: Couldn't find boot device (typically /dev/sda)!"
+        exit 1
+    fi
+
+    <% if @Config[:UEFI] %>emerge sys-boot/efibootmgr<% end %>
+
+
+    ##############################################
+    #
+    # 10. Configuring the Bootloader
+    #
+
+    <% if @Config[:Bootloader].downcase == 'grub2' %>
+    echo 'GRUB_PLATFORMS="efi-32 efi-64 pc"' >> $MAKECONF
+
+    #
+    # 10.b. Default: Using GRUB2
+    #
+    # Installing GRUB2
+    #
+    # Code Listing 2.1: Installing GRUB2
+    #
+    emerge sys-boot/grub sys-boot/os-prober
+
+    #
+    # Configuring GRUB2
+    #
+    # Code Listing 2.2: Installing the GRUB2 files
+    #
+    <% if @Config[:UEFI] %>
+    grub2-install --target=x86_64-efi
+    sed -i '/GRUB_CMDLINE_LINUX=.*/c\GRUB_CMDLINE_LINUX="init=/usr/lib/systemd/systemd"' /etc/default/grub
+    <% else %>
+    grub2-install ${BOOTDEVICE%?}
+    <% end %>
+
+    #
+    # Code Listing 2.3: Generating GRUB2 configuration
+    #
+    grub2-mkconfig -o /boot/grub/grub.cfg
+
+    <% elsif @Config[:Bootloader].downcase == 'syslinux' %>
+
+    emerge sys-boot/syslinux
+
+    <% if @Config[:UEFI] %>
+    mkdir -p /boot/EFI/syslinux
+    cp -r /usr/share/syslinux/efi64/* /boot/EFI/syslinux
+    <% end %>
+
+    <% else %>
+    <% raise "Uknown bootloader #{@Config[:Bootloader]}" %>
+    <% end %>
+
+
+    <% if @Config[:Packages] %>
+    emerge <%= @Config[:Packages].to_a.join(' ') %>
+    <% end %>
+
+    emerge --update --deep --with-bdeps=y --newuse @world
+
+    <% if @Config[:Remove] %>
+    emerge -C <%= @Config[:Remove].to_a.join(' ') %>
+    <% end %>
+
+
+    #
+    # 8.c. System Information
+    #
+    # Root Password
+    #
+    # Code Listing 3.1: Setting the root password
+    echo "Creating password for root!"
+    passwd
+
+
+    <% if @Config[:Init].downcase == 'systemd' %>
+    ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+    <% end %>
+
+else
+
+    echo "To start installation, type"
+    echo "$0 install"
+    echo
+    echo "Next stage will be started automatically (to be executed inside actuall system)"
+    echo "$0 chroot"
+
+fi
