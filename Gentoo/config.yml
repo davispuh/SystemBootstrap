@@ -5,8 +5,8 @@ Arch: amd64
 Platform: amd64
 Location: "$MIRROR/releases/$ARCH/autobuilds"
 LatestStage: latest-stage3-$PLATFORM.txt
-Folder: '20140619'
-Stage3: stage3-amd64-20140619.tar.bz2
+Folder: '20140925'
+Stage3: stage3-amd64-20140925.tar.bz2
 Digests: "$STAGE3.DIGESTS.asc"
 KeyID: '0xBB572E0E2D182910'
 DigestsHeader: "# SHA512 HASH"

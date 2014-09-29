@@ -26,8 +26,8 @@ MIRROR="http://distfiles.gentoo.org"
 ARCH="amd64"
 PLATFORM="amd64"
 LOCATION="$MIRROR/releases/$ARCH/autobuilds"
-FOLDER="20140619"
-STAGE3="stage3-amd64-20140619.tar.bz2"
+FOLDER="20140925"
+STAGE3="stage3-amd64-20140925.tar.bz2"
 DIGESTS="$STAGE3.DIGESTS.asc"
 KEYID='0xBB572E0E2D182910'
 HEADER='# SHA512 HASH'
@@ -48,10 +48,11 @@ PROFILE="desktop/kde/systemd"
 
 KERNEL_MODULES=''
 
-SHASUM='81d96ef2876e1254dbc30d129551aa8d921f8adaaf5178c8bb195dd42d97acb04e3c144467414a4cdaa20df044474606653914eeb0fd0db4b4dc9a61b54cd466'
+SHASUM='9ab17168925a2233ce258685f86d5b8d7bf662919a79b58a6b5ed5dc00e719b4def6fc2e78949802ac9b745f24e0e58bdf25c11bf880e98ec9dafcf6354f1b33'
 
 
 CLEAN="tr -d '\040\011\012\015'"
+
 
 #################################################
 #
@@ -64,23 +65,29 @@ CLEAN="tr -d '\040\011\012\015'"
 
 
 
+###
+# Verify script's digest
 cp $SCRIPT ./scripttmp
 
 sed -i "0,/SHASUM=/{s/SHASUM=.*/SHASUM=''/}" ./scripttmp
 
-`echo "$SHASUM ./scripttmp" | sha512sum -c --status -`
+`echo "$SHASUM  ./scripttmp" | sha512sum -c --status -`
 
 if [ $? -ne 0 ]; then
-    echo "ERROR! SHA checksum does not match for this script!"
-    echo "Possibly corrupted script!"
+    echo "ERROR! SHA checksum does not match for this script!" >&2
+    echo "Possibly corrupted script!" >&2
     rm -f ./scripttmp
     exit 1
 fi
 
 rm -f ./scripttmp
+###
 
 
 if [ "$1" == "install" ]; then
+
+    exec 3>&2
+    exec 2> >(tee "$SCRIPT.log" >&2)
 
     mkdir -p $ROOT/tmp
     chmod -R 1777 $ROOT/tmp
@@ -92,16 +99,15 @@ if [ "$1" == "install" ]; then
 
     wget -N $LOCATION/$FOLDER/$DIGESTS
 
-    gpg -q --no-verbose --refresh-keys
+    gpg -q --no-verbose --refresh-keys > /dev/null >&2
     gpg -q --no-verbose --recv-keys "$KEYID"
 
     #
     # Code Listing 2.5: Validating the checksums using gpg
     #
     gpg -q --no-verbose --verify $DIGESTS
-
     if [ $? -ne 0 ]; then
-        echo "ERROR! Failed to verify signature of $DIGESTS"
+        echo "ERROR! Failed to verify signature of $DIGESTS" >&2
         exit 1
     fi
 
@@ -113,7 +119,7 @@ if [ "$1" == "install" ]; then
     EXPECTED=`grep -m 1 -A1 "$HEADER" $DIGESTS | $CLEAN`
 
     if [ -z "$EXPECTED" ]; then
-        echo "ERROR! SHA512 checksum not found in signed digest file $DIGESTS"
+        echo "ERROR! SHA512 checksum not found in signed digest file $DIGESTS" >&2
         exit 1
     fi
 
@@ -123,9 +129,9 @@ if [ "$1" == "install" ]; then
     SHA512=`sha512sum $STAGE3`
     GOTSHA=`echo "$HEADER$SHA512" | $CLEAN`
     if [ "$GOTSHA" != "$EXPECTED" ]; then
-        echo "ERROR! SHA512 checksums do not match for file $STAGE3"
-        echo "Expected: $EXPECTED"
-        echo " But got: $GOTSHA"
+        echo "ERROR! SHA512 checksums do not match for file $STAGE3" >&2
+        echo "Expected: $EXPECTED" >&2
+        echo " But got: $GOTSHA" >&2
         exit 1
     fi
 
@@ -280,6 +286,9 @@ if [ "$1" == "install" ]; then
     echo "Done! Now you should reboot!"
 
 elif [ "$1" == "chroot" ]; then
+
+    exec 3>&2
+    exec 2> >(tee "$SCRIPT.log" >&2)
 
     mkdir -p $PACKAGEKEYWORDS
 
@@ -4536,7 +4545,7 @@ DHCP=yes' > /etc/systemd/network/dhcp.network
     done <<< $"`mount | grep ^/dev/`"
 
     if [ -z "$BOOTDEVICE" ]; then
-        echo "ERROR: Couldn't find boot device (typically /dev/sda)!"
+        echo "ERROR: Couldn't find boot device (typically /dev/sda)!" >&2
         exit 1
     fi
 
