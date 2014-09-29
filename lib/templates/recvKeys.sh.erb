@@ -1,0 +1,3 @@
+#!/bin/bash
+gpg -q --no-verbose --refresh-keys > /dev/null >&2
+gpg -q --no-verbose --recv-keys "$KEYID"

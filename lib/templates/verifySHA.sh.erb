@@ -1,0 +1,15 @@
+#!/bin/bash
+cp $SCRIPT ./scripttmp
+
+sed -i "0,/SHASUM=/{s/SHASUM=.*/SHASUM=''/}" ./scripttmp
+
+`echo "$SHASUM  ./scripttmp" | sha512sum -c --status -`
+
+if [ $? -ne 0 ]; then
+    echo "ERROR! SHA checksum does not match for this script!" >&2
+    echo "Possibly corrupted script!" >&2
+    rm -f ./scripttmp
+    exit 1
+fi
+
+rm -f ./scripttmp

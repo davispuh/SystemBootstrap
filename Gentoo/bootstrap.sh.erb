@@ -53,6 +53,7 @@ SHASUM=''
 
 CLEAN="tr -d '\040\011\012\015'"
 
+
 #################################################
 #
 # Installation start!
@@ -64,23 +65,15 @@ CLEAN="tr -d '\040\011\012\015'"
 
 
 
-cp $SCRIPT ./scripttmp
-
-sed -i "0,/SHASUM=/{s/SHASUM=.*/SHASUM=''/}" ./scripttmp
-
-`echo "$SHASUM ./scripttmp" | sha512sum -c --status -`
-
-if [ $? -ne 0 ]; then
-    echo "ERROR! SHA checksum does not match for this script!"
-    echo "Possibly corrupted script!"
-    rm -f ./scripttmp
-    exit 1
-fi
-
-rm -f ./scripttmp
+###
+# Verify script's digest
+<%= insert('verifySHA') %>
+###
 
 
 if [ "$1" == "install" ]; then
+
+    <%= insert('log', nil, 4) %>
 
     mkdir -p $ROOT/tmp
     chmod -R 1777 $ROOT/tmp
@@ -92,18 +85,12 @@ if [ "$1" == "install" ]; then
 
     wget -N $LOCATION/$FOLDER/$DIGESTS
 
-    gpg -q --no-verbose --refresh-keys
-    gpg -q --no-verbose --recv-keys "$KEYID"
+    <%= insert('recvKeys', nil, 4) %>
 
     #
     # Code Listing 2.5: Validating the checksums using gpg
     #
-    gpg -q --no-verbose --verify $DIGESTS
-
-    if [ $? -ne 0 ]; then
-        echo "ERROR! Failed to verify signature of $DIGESTS"
-        exit 1
-    fi
+    <%= insert('verifyGPG', '$DIGESTS', 4) %>
 
     #
     # Downloading the Stage Tarball
@@ -248,6 +235,8 @@ if [ "$1" == "install" ]; then
     echo "Done! Now you should reboot!"
 
 elif [ "$1" == "chroot" ]; then
+
+    <%= insert('log', nil, 4) %>
 
     mkdir -p $PACKAGEKEYWORDS
 

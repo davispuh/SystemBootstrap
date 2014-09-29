@@ -1,0 +1,5 @@
+#!/bin/bash
+`$CHECK_COMMAND &> /dev/null`
+if [ $? -ne 0 ]; then
+    CHECK_NOTFOUND="$CHECK_NOTFOUND $CHECK_TOOL"
+fi

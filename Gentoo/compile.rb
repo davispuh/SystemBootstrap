@@ -6,6 +6,7 @@ require 'pathname'
 
 
 require_relative '../lib/utils.rb'
+require_relative '../lib/shell_utils.rb'
 
 path = Pathname.new(File.dirname(__FILE__))
 
