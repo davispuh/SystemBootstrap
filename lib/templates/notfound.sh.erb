@@ -1,0 +1,5 @@
+#!/bin/bash
+if [ ! -z "$CHECK_NOTFOUND" ]; then
+    echo "ERROR! The following tools weren't found: $CHECK_NOTFOUND" >&2
+    exit 1
+fi

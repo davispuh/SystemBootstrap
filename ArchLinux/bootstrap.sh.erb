@@ -1,0 +1,243 @@
+#!/bin/bash
+#
+# ArchLinux Installation Bootstrapping
+#
+#
+#
+# Manually boot Installation medium
+#
+# 2. Installation
+#
+# 2.2 Establish an internet connection
+#
+# 2.3 Prepare the storage drive
+# 2.3.1 Choose a partition table type
+# 2.3.2 Partitioning tool
+# 2.3.3 Erase partition table
+# 2.3.4 Partition scheme
+# 2.3.6 Create filesystems
+#
+# 2.4 Mount the partitions
+#
+# Launch ./bootstrap.sh install
+#
+#
+
+SCRIPT=`realpath $0`
+ROOT=<%= @Config[:Root].inspect %>
+
+
+SHASUM=''
+
+
+CLEAN="tr -d '\040\011\012\015'"
+
+
+#################################################
+#
+# Installation start!
+#
+
+###
+# Verify script's digest
+<%= insert('verifySHA') %>
+###
+
+
+if [ "$1" == "install" ]; then
+
+    <%= insert('log', nil, 4) %>
+
+    mkdir -p $ROOT/tmp
+    chmod -R 1777 $ROOT/tmp
+    cd $ROOT
+
+    #
+    # 2.5 Select a mirror
+    #
+    <% @Config[:Mirrors].to_a.each do |mirror| %>
+    echo 'Server = <%= mirror %>' >> /etc/pacman.d/mirrorlist<% end %>
+
+    #
+    # 2.6 Install the base system
+    #
+    pacstrap ./ base base-devel
+    if [ $? -ne 0 ]; then
+        echo "ERROR! pacstrap  failed!" >&2
+    fi
+
+    #
+    # 2.7 Generate an fstab
+    #
+    genfstab -U -p ./ >> ./etc/fstab
+
+    # Copy itself bootstrap script
+    cp -L -u $SCRIPT ./root/bootstrap.sh
+
+    #############################################
+    #
+    # 2.8 Chroot and configure the base system
+    #
+    arch-chroot ./ /bin/bash -c "/root/bootstrap.sh chroot"
+
+    #
+    # 2.13 Unmount the partitions and reboot
+    #
+    echo
+    echo "Done! Now you should reboot!"
+
+elif [ "$1" == "chroot" ]; then
+
+    <%= insert('log', nil, 4) %>
+
+    #
+    # 2.8.1 Locale
+    #
+    <% @Config[:Locales].to_a.each do |locale| %>
+    echo <%= locale.inspect %> >> /etc/locale.gen<% end %>
+
+    locale-gen
+
+    echo "LANG=<%= getLocale(@Config[:Locales].to_a.first) %>" > /etc/locale.conf
+
+    #
+    # 2.8.2 Console font and keymap
+    #
+    echo "KEYMAP=<%= @Config[:Keymap] %>" > /etc/vconsole.conf
+    echo "FONT=<%= @Config[:Font] %>" >> /etc/vconsole.conf
+
+    #
+    # 2.8.3 Time zone
+    #
+    ln -s /usr/share/zoneinfo/<%= @Config[:Timezone] %> > /etc/localtime
+
+    #
+    # 2.8.4 Hardware clock
+    #
+    hwclock --systohc --utc
+
+    #
+    # 2.8.5 Kernel modules
+    #
+    <% @Config[:Modules].to_a.each do |m| %>
+    echo <%= m.inspect %> > "/etc/modules-load.d/<%= m %>.conf"<% end %>
+
+    #
+    # 2.8.6 Hostname
+    #
+    echo <%= @Config[:Hostname].inspect %> > /etc/hostname
+    # /etc/hosts
+
+    ##############################################
+    #
+    # 2.9 Configure the network
+    #
+    echo '[Match]
+Name=en*
+
+[Network]
+DHCP=yes' > /etc/systemd/network/dhcp.network
+
+    ##############################################
+    #
+    # 2.10 Create an initial ramdisk environment
+    #
+    # @Config[:InitModules] > /etc/mkinitcpio.conf
+    mkinitcpio -p linux
+
+
+    ##############################################
+    #
+    # 2.12 Install and configure a bootloader
+    #
+    BOOTDEVICE=""
+
+    FSTAB_MATCH="^(/dev/[a-z0-9]+) on (/[a-z0-9/]*) type ([a-z0-9]+)"
+    while read -r line; do
+        if [[ $line =~ $FSTAB_MATCH ]]; then
+            FSTAB_DEVICE=${BASH_REMATCH[1]}
+            FSTAB_PATH=${BASH_REMATCH[2]}
+            if [ "$FSTAB_PATH" == "/boot" ]; then
+                BOOTDEVICE=$FSTAB_DEVICE
+            elif [ "$FSTAB_PATH" == "/" ] && [ -z "$BOOTDEVICE" ]; then
+                BOOTDEVICE=$FSTAB_DEVICE
+            fi
+            FSTAB_UUID=`lsblk -f $FSTAB_DEVICE -o UUID -n`
+        fi
+    done <<< $"`mount | grep ^/dev/`"
+
+    if [ -z "$BOOTDEVICE" ]; then
+        echo "ERROR: Couldn't find boot device (typically /dev/sda)!" >&2
+        exit 1
+    fi
+
+    <% if @Config[:Bootloader].downcase == 'grub2' %>
+
+    #
+    # 2.12.1.2 GRUB
+    # 2.12.2.2 GRUB
+    #
+    pacman --noconfirm -S grub
+
+    <% if @Config[:UEFI] %>
+    pacman --noconfirm -S grub efibootmgr
+    grub-install --target=$ARCH-efi --efi-directory=/boot --bootloader-id=arch_grub --recheck
+    <% else %>
+    grub-install --target=$ARCH-pc --recheck /dev/sda ${BOOTDEVICE%?}
+    <% end %>
+    grub-mkconfig -o /boot/grub/grub.cfg
+
+    <% elsif @Config[:Bootloader].downcase == 'syslinux' %>
+
+    #
+    # 2.12.1.1 Syslinux
+    #
+    pacman --noconfirm -S syslinux
+
+    <% if @Config[:UEFI] %>
+    mkdir -p /boot/EFI/syslinux
+    cp -r /usr/share/syslinux/efi64/* /boot/EFI/syslinux
+    <% else %>
+    syslinux-install_update -iam
+    sed -i "s|root=/dev/sda3|root=$BOOTDEVICE|g" /boot/syslinux/syslinux.cfg
+    <% end %>
+
+    <% else %>
+    <% raise "Uknown bootloader #{@Config[:Bootloader]}" %>
+    <% end %>
+
+
+    ##############################################
+    #
+    # 3. Post-installation
+    #
+    <% if @Config[:Packages] %>
+    pacman --noconfirm -S <%= @Config[:Packages].to_a.join(' ') %>
+    <% end %>
+
+    <% if @Config[:Remove] %>
+    pacman --noconfirm -R <%= @Config[:Remove].to_a.join(' ') %>
+    <% end %>
+
+    pacman --noconfirm -Syyu
+
+    #
+    # 2.11 Set the root password
+    #
+    echo "Creating password for root!"
+    passwd
+
+    systemctl enable systemd-networkd.service
+    systemctl enable systemd-resolved.service
+    mv /etc/resolv.conf /etc/resolv.conf.old
+    ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+
+else
+
+    echo "To start installation, type"
+    echo "$0 install"
+    echo
+    echo "Next stage will be started automatically (to be executed inside actuall system)"
+    echo "$0 chroot"
+
+fi

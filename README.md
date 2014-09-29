@@ -2,7 +2,19 @@
 
 A collection of shell files to automatically install Operating System with preconfigured settings.
 
-Note: currently there's only support for Gentoo.
+Note: currently there's only support for ArchLinux and Gentoo.
+
+## ArchLinux
+
+1. Edit `ArchLinux/config.yml`
+2. Update to latest ArchLinux version with `rake update`
+3. Compile with `rake compile`
+4. Create ArchLinux installation flash or CD, add generated `ArchLinux/bootstrap.sh` or upload it somewhere
+5. On target system, boot ArchLinux installation medium, create paritions, mount them and execute `bootstrap.sh install`
+6. Wait till system is installed.
+7. Enjoy!
+
+(you can also install it from existing system using `bootstrap_existing.sh`)
 
 ## Gentoo
 

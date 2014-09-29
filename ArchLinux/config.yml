@@ -1,0 +1,27 @@
+---
+Root: "/mnt"
+MainMirror: https://mirrors.kernel.org/
+Version: 2014.09.03
+Arch: i686
+Location: "$MAINMIRROR/archlinux/iso/$VERSION"
+SHASum: sha1sums.txt
+Bootstrap: archlinux-bootstrap-$VERSION-$ARCH.tar.gz
+Signature: "$BOOTSTRAP.sig"
+KeyID: '0x9741E8AC'
+Mirrors:
+- https://archlinux.limun.org/$repo/os/$arch
+- https://ftp.fau.de/archlinux/$repo/os/$arch
+- https://archlinux.my-universe.com/$repo/os/$arch
+Locales:
+- en_US.UTF-8 UTF-8
+Keymap: us
+Font: lat9w-16
+Timezone: America/Chicago
+Hostname: ArchLinux
+Modules: 
+InitModules: 
+UEFI: false
+Bootloader: syslinux
+Packages:
+- vim
+Remove: 

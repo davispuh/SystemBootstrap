@@ -1,0 +1,108 @@
+#!/bin/bash
+#
+# ArchLinux Installation Bootstrapping from Existing Linux
+#
+#
+#
+# Launch ./bootstrap_existing.sh install
+#
+#
+
+CDIR=`pwd`
+SCRIPT=`realpath $0`
+TMP=/tmp
+
+MAINMIRROR=<%= @Config[:MainMirror].inspect %>
+VERSION=<%= @Config[:Version].inspect %>
+ARCH=<%= @Config[:Arch].inspect %>
+LOCATION=<%= @Config[:Location].inspect %>
+BOOTSTRAP=<%= @Config[:Bootstrap].inspect %>
+SIGNATURE=<%= @Config[:Signature].inspect %>
+KEYID='<%= @Config[:KeyID] %>'
+
+
+SHASUM=''
+
+
+CLEAN="tr -d '\040\011\012\015'"
+
+#################################################
+#
+# Installation start!
+#
+
+###
+# Verify script's digest
+<%= insert('verifySHA') %>
+###
+
+
+if [ "$1" == "install" ]; then
+
+    <%= insert('log', nil, 4) %>
+
+    ###
+    # Check for tools
+    <%= check(:curl, :gpg, :tar, 4) %>
+    ###
+
+    cd $TMP
+
+    #
+    # Download the bootstrap image from a mirror
+    #
+    curl -O $LOCATION/$BOOTSTRAP
+    curl -O $LOCATION/$SIGNATURE
+
+    <%= insert('recvKeys', nil, 4) %>
+    <%= insert('verifyGPG', '$SIGNATURE', 4) %>
+
+    #
+    # Extract the tarball
+    #
+    tar xzf $BOOTSTRAP
+    rm -f $BOOTSTRAP $SIGNATURE
+    cd "root.$ARCH"
+
+    # Copy bootstrap script
+    cp -L $CDIR/bootstrap.sh ./root/bootstrap.sh
+
+    #############################################
+    #
+    # 2.8 Chroot and configure the base system
+    #
+    if [ ! -d /dev/shm ]; then
+        mkdir -p /tmp/shm
+        ln -s /tmp/shm /dev/shm
+    fi
+
+    echo 'pacman-key --init
+pacman-key --populate archlinux
+echo "2.3 Prepare the storage drive"
+echo "2.4 Mount the partitions"
+echo "Now launch /root/bootstrap.sh install"
+' > ./root/init.sh
+    chmod +x ./root/init.sh
+
+    exec 2>&3
+
+    ./bin/arch-chroot ./ /bin/bash -c "/root/init.sh && /bin/bash"
+    if [ $? -ne 0 ]; then
+        mount --rbind /proc proc
+        mount --rbind /sys sys
+        mount --rbind /dev dev
+        mount --rbind /run run
+        /bin/cp -f /etc/resolv.conf etc
+        chroot ./ /bin/bash -c "/root/init.sh && /bin/bash"
+    fi
+
+
+    echo
+    echo "Done! Now you should reboot!"
+
+else
+
+    echo "To start installation, type"
+    echo "$0 install"
+
+fi
