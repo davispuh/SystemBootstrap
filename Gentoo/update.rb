@@ -5,9 +5,9 @@ require 'pathname'
 require 'open-uri'
 require 'base64'
 
-Path = Pathname.new(File.dirname(__FILE__))
+path = Pathname.new(File.dirname(__FILE__))
 
-config = YAML.load_file(Path + 'config.yml')
+config = YAML.load_file(path + 'config.yml')
 
 location = config['Location'].dup
 location['$MIRROR'] = config['Mirror']
@@ -32,4 +32,4 @@ end
 
 puts "Latest Gentoo #{config['Stage3']} with KeyID #{config['KeyID']}"
 
-File.write(Path + 'config.yml', config.to_yaml, { mode: 'wb' })
+File.write(path + 'config.yml', config.to_yaml, { mode: 'wb' })
