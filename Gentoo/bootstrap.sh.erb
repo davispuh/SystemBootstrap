@@ -100,7 +100,7 @@ if [ "$1" == "install" ]; then
     EXPECTED=`grep -m 1 -A1 "$HEADER" $DIGESTS | $CLEAN`
 
     if [ -z "$EXPECTED" ]; then
-        echo "ERROR! SHA512 checksum not found in signed digest file $DIGESTS"
+        echo "ERROR! SHA512 checksum not found in signed digest file $DIGESTS" >&2
         exit 1
     fi
 
@@ -110,9 +110,9 @@ if [ "$1" == "install" ]; then
     SHA512=`sha512sum $STAGE3`
     GOTSHA=`echo "$HEADER$SHA512" | $CLEAN`
     if [ "$GOTSHA" != "$EXPECTED" ]; then
-        echo "ERROR! SHA512 checksums do not match for file $STAGE3"
-        echo "Expected: $EXPECTED"
-        echo " But got: $GOTSHA"
+        echo "ERROR! SHA512 checksums do not match for file $STAGE3" >&2
+        echo "Expected: $EXPECTED" >&2
+        echo " But got: $GOTSHA" >&2
         exit 1
     fi
 
@@ -485,7 +485,7 @@ DHCP=yes' > /etc/systemd/network/dhcp.network
     done <<< $"`mount | grep ^/dev/`"
 
     if [ -z "$BOOTDEVICE" ]; then
-        echo "ERROR: Couldn't find boot device (typically /dev/sda)!"
+        echo "ERROR: Couldn't find boot device (typically /dev/sda)!" >&2
         exit 1
     fi
 
